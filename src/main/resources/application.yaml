@@ -1,12 +1,11 @@
 spring:
   application:
     name: zenith-discord-bot
-  mongodb:
-    uri: ${SPRING_MONGODB_URI:}
   main:
     banner-mode: OFF
   data:
     mongodb:
+      uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/zenith}
       auto-index-creation: true
 
 sentry:

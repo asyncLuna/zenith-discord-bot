@@ -74,8 +74,9 @@ public class UwuLockCommand implements BotCommand {
     private Mono<?> handleApply(CommandContext ctx) {
         return ctx.getOptionAsUser("user")
                 .orElseGet(() -> Mono.error(new CommandException(ctx.localize("uwulock.error.invalid_user"))))
-                .flatMap(
-                        user -> uwuLockService.lockUser(user.getId().asString()).flatMap(success -> {
+                .flatMap(user -> uwuLockService
+                        .lockUserAsync(user.getId().asString())
+                        .flatMap(success -> {
                             if (!success) {
                                 return Mono.error(new CommandException(
                                         ctx.localize("uwulock.apply.already_locked", user.getMention())));
@@ -97,7 +98,7 @@ public class UwuLockCommand implements BotCommand {
         return ctx.getOptionAsUser("user")
                 .orElseGet(() -> Mono.error(new CommandException(ctx.localize("uwulock.error.invalid_user"))))
                 .flatMap(user -> uwuLockService
-                        .unlockUser(user.getId().asString())
+                        .unlockUserAsync(user.getId().asString())
                         .flatMap(success -> {
                             if (!success) {
                                 return Mono.error(new CommandException(

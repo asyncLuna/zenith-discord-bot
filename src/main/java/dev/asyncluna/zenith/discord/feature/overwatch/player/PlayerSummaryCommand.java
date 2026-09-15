@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
 @Command(name = "player_summary", description = "Get summary and competitive ranks for an Overwatch player.")
 @CommandOption(
         name = "player_id",
-        description = "The BattleTag (e.g LUNAǃ#2788).",
+        description = "The BattleTag (e.g LUNAÃ‡Æ’#2788).",
         type = ApplicationCommandOption.Type.STRING,
         required = true)
 public class PlayerSummaryCommand implements BotCommand {
@@ -47,7 +47,8 @@ public class PlayerSummaryCommand implements BotCommand {
 
     private EmbedCreateSpec createPlayerSummaryEmbed(PlayerSummary playerSummary, CommandContext ctx) {
         String title = playerSummary.username();
-        if (playerSummary.title() != null && !playerSummary.title().isBlank()) title += " — " + playerSummary.title();
+        if (playerSummary.title() != null && !playerSummary.title().isBlank())
+            title += " Ã¢â‚¬â€ " + playerSummary.title();
 
         EmbedCreateSpec.Builder embedBuilder =
                 EmbedCreateSpec.builder().title(title).color(EmbedUtils.DEFAULT_COLOR);
@@ -62,7 +63,7 @@ public class PlayerSummaryCommand implements BotCommand {
 
         if (playerSummary.lastUpdatedAt() != null) {
             descriptionBuilder
-                    .append("🕒 ")
+                    .append("Ã°Å¸â€¢â€™ ")
                     .append(ctx.localize("player.last_updated"))
                     .append(" <t:")
                     .append(playerSummary.lastUpdatedAt())
@@ -72,7 +73,7 @@ public class PlayerSummaryCommand implements BotCommand {
         if (playerSummary.endorsement() != null && playerSummary.endorsement().level() != null) {
             if (!descriptionBuilder.isEmpty()) descriptionBuilder.append("\n\n");
             descriptionBuilder
-                    .append("🏆 ")
+                    .append("Ã°Å¸Ââ€  ")
                     .append(ctx.localize("player.endorsement_level"))
                     .append(" **")
                     .append(playerSummary.endorsement().level())
@@ -113,7 +114,7 @@ public class PlayerSummaryCommand implements BotCommand {
         appendRoleRank(rankContainerBuilder, "open", ctx.localize("competitive.role.open"), rank.open());
 
         if (rankContainerBuilder.isEmpty()) {
-            return "\u200E\u2002└> " + ctx.localize("player.rank.unranked");
+            return "\u200E\u2002Ã¢â€â€> " + ctx.localize("player.rank.unranked");
         }
 
         return rankContainerBuilder.toString();
@@ -125,7 +126,7 @@ public class PlayerSummaryCommand implements BotCommand {
                 && !roleRank.division().isBlank()) {
             if (!builder.isEmpty()) builder.append("\n");
 
-            builder.append("\u200E\u2002└> ")
+            builder.append("\u200E\u2002Ã¢â€â€> ")
                     .append(getRoleEmoji(roleKey))
                     .append(" ")
                     .append(getRankEmoji(roleRank.division()))
@@ -145,7 +146,7 @@ public class PlayerSummaryCommand implements BotCommand {
             case "damage" -> "<:damage:1516490951789645955>";
             case "support" -> "<:support:1516490950719963326>";
             case "open" -> "<:open_queue:1516489924667248732>";
-            default -> "❓";
+            default -> "Ã¢Ââ€œ";
         };
     }
 
@@ -160,7 +161,7 @@ public class PlayerSummaryCommand implements BotCommand {
             case "grandmaster" -> "<:grandmaster:1516488829782196244>";
             case "champion" -> "<:champion:1516488830956339380>";
             case "top500" -> "<:top500:1516488832210567390>";
-            default -> "▫️";
+            default -> "Ã¢â€“Â«Ã¯Â¸Â";
         };
     }
 }

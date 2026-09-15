@@ -9,7 +9,6 @@ import dev.asyncluna.zenith.core.i18n.I18nManager;
 import dev.asyncluna.zenith.core.i18n.SupportedLocale;
 import dev.asyncluna.zenith.core.model.GuildSettings;
 import dev.asyncluna.zenith.core.repository.GuildSettingsRepository;
-import dev.asyncluna.zenith.discord.util.EmbedUtils;
 import dev.asyncluna.zenith.memberoftheweek.config.MemberOfTheWeekProperties;
 import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekRound;
 import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekRoundStatus;
@@ -17,16 +16,10 @@ import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekVoteCount;
 import dev.asyncluna.zenith.memberoftheweek.repository.MemberOfTheWeekRoundRepository;
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
-import discord4j.core.object.component.ActionRow;
-import discord4j.core.object.component.SelectMenu;
 import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
-import discord4j.core.spec.EmbedCreateSpec;
-import discord4j.core.spec.MessageCreateSpec;
-import discord4j.rest.util.AllowedMentions;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
@@ -53,6 +46,7 @@ public class MemberOfTheWeekRoundService {
     private final MemberOfTheWeekRoundRepository roundRepository;
     private final GuildSettingsRepository guildSettingsRepository;
     private final I18nManager i18nManager;
+    private final MemberOfTheWeekMessageFactory messageFactory;
     private final ReactiveMongoTemplate mongoTemplate;
     private final Clock memberOfTheWeekClock;
 
@@ -61,9 +55,8 @@ public class MemberOfTheWeekRoundService {
 
         return isPaused()
                 .flatMap(paused -> paused ? Mono.empty() : closeCurrentRound().then(openNewRound()))
-                .doOnSuccess(round -> log.info(
-                        "Member of the Week round rotated | roundId={} | endsAt={}", round.getId(), round.getEndsAt()))
-                .doOnError(error -> log.error("Failed to rotate Member of the Week round", error));
+                .doOnSuccess(this::logRoundRotated)
+                .doOnError(this::logRotationFailure);
     }
 
     public Mono<MemberOfTheWeekRound> openInitialRound() {
@@ -71,10 +64,7 @@ public class MemberOfTheWeekRoundService {
 
         return isPaused()
                 .flatMap(paused -> paused ? Mono.empty() : openNewRound())
-                .doOnSuccess(round -> log.info(
-                        "Initial Member of the Week round opened | roundId={} | endsAt={}",
-                        round.getId(),
-                        round.getEndsAt()));
+                .doOnSuccess(this::logInitialRoundOpened);
     }
 
     public Mono<MemberOfTheWeekRound> getCurrentRound() {
@@ -113,7 +103,7 @@ public class MemberOfTheWeekRoundService {
                 .flatMap(channel -> channel.getMessageById(Snowflake.of(round.getMessageId())))
                 .flatMap(message -> getGuildLocale().flatMap(locale -> {
                     String title = i18nManager.localize("member_of_the_week.embed.title", locale);
-                    String description = createVotingDescription(round, locale);
+                    String description = messageFactory.createVotingDescription(round, locale);
 
                     boolean needsUpdate = message.getEmbeds().stream()
                             .findFirst()
@@ -125,27 +115,12 @@ public class MemberOfTheWeekRoundService {
                         return Mono.just(round);
                     }
 
-                    EmbedCreateSpec updatedEmbed = EmbedCreateSpec.builder()
-                            .color(EmbedUtils.DEFAULT_COLOR)
-                            .title(title)
-                            .description(description)
-                            .timestamp(Instant.now(memberOfTheWeekClock))
-                            .build();
+                    var updatedEmbed = messageFactory.createVotingEmbed(round, locale);
 
                     return message.edit().withEmbeds(updatedEmbed).thenReturn(round);
                 }))
-                .doOnNext(refreshedRound -> log.info(
-                        "Checked Member of the Week voting message | roundId={} | messageId={}",
-                        refreshedRound.getId(),
-                        refreshedRound.getMessageId()))
-                .onErrorResume(error -> {
-                    log.warn(
-                            "Could not refresh Member of the Week voting message | roundId={} | messageId={}",
-                            round.getId(),
-                            round.getMessageId(),
-                            error);
-                    return Mono.just(round);
-                });
+                .doOnNext(this::logVotingMessageChecked)
+                .onErrorResume(error -> keepRoundAfterRefreshFailure(round, error));
     }
 
     public Mono<List<MemberOfTheWeekVoteCount>> getVoteCounts(String guildId, String roundId) {
@@ -283,144 +258,78 @@ public class MemberOfTheWeekRoundService {
 
                     return roundRepository.save(savedRound);
                 })
-                .onErrorResume(error -> {
-                    log.error(
-                            "Failed to send voting message; deleting newly created round | roundId={}",
-                            savedRound.getId(),
-                            error);
-
-                    return roundRepository.delete(savedRound).then(Mono.error(error));
-                }));
+                .onErrorResume(error -> rollbackFailedRound(savedRound, error)));
     }
 
     private Mono<Message> sendVotingMessage(MemberOfTheWeekRound round) {
-        return getGuildLocale().flatMap(locale -> {
-            SelectMenu selectMenu = SelectMenu.ofUser(COMPONENT_ID_PREFIX + round.getId(), Collections.emptyList())
-                    .withPlaceholder(i18nManager.localize("member_of_the_week.select_member", locale))
-                    .withMinValues(1)
-                    .withMaxValues(1);
-
-            EmbedCreateSpec embed = createVotingEmbed(round, locale);
-
-            MessageCreateSpec.Builder messageBuilder =
-                    MessageCreateSpec.builder().addEmbed(embed).addComponent(ActionRow.of(selectMenu));
-
-            if (properties.roleId() != null && !properties.roleId().isBlank()) {
-                Snowflake roleId = Snowflake.of(properties.roleId());
-
-                messageBuilder
-                        .content("<@&" + roleId.asString() + ">")
-                        .allowedMentions(
-                                AllowedMentions.builder().allowRole(roleId).build());
-            }
-
-            return getVotingChannel()
-                    .flatMap(channel -> channel.createMessage(messageBuilder.build()))
-                    .doOnSuccess(createdMessage -> log.info(
-                            "Member of the Week voting message sent | channel={} | message={}",
-                            properties.channelId(),
-                            createdMessage.getId().asString()));
-        });
-    }
-
-    private EmbedCreateSpec createVotingEmbed(MemberOfTheWeekRound round, Locale locale) {
-        return EmbedCreateSpec.builder()
-                .color(EmbedUtils.DEFAULT_COLOR)
-                .title(i18nManager.localize("member_of_the_week.embed.title", locale))
-                .description(createVotingDescription(round, locale))
-                .timestamp(Instant.now(memberOfTheWeekClock))
-                .build();
-    }
-
-    private String createVotingDescription(MemberOfTheWeekRound round, Locale locale) {
-        String endsAt = MemberOfTheWeekTimeFormatter.format(round.getEndsAt(), memberOfTheWeekClock.getZone());
-
-        return i18nManager.localize("member_of_the_week.embed.description", locale, endsAt);
-    }
-
-    private String createWinnerPingContent(MemberOfTheWeekVoteCount winner) {
-        if (winner == null) {
-            return null;
-        }
-
-        return "<@" + winner.candidateId() + ">";
+        return getGuildLocale().flatMap(locale -> getVotingChannel()
+                .flatMap(channel -> channel.createMessage(messageFactory.createVotingMessage(round, locale)))
+                .doOnSuccess(this::logVotingMessageSent));
     }
 
     private Mono<Void> announceResults(List<MemberOfTheWeekVoteCount> winners, long totalVotes) {
         MemberOfTheWeekVoteCount selectedWinner =
                 winners.isEmpty() ? null : (winners.size() == 1 ? winners.getFirst() : pickRandomWinner(winners));
         return getGuildLocale().flatMap(locale -> {
-            String description = createResultsDescription(winners, selectedWinner, totalVotes, locale);
-            String content = createWinnerPingContent(selectedWinner);
-
-            EmbedCreateSpec embed = EmbedCreateSpec.builder()
-                    .color(EmbedUtils.DEFAULT_COLOR)
-                    .title(i18nManager.localize("member_of_the_week.results.title", locale))
-                    .description(description)
-                    .timestamp(Instant.now(memberOfTheWeekClock))
-                    .build();
-
-            MessageCreateSpec.Builder messageBuilder =
-                    MessageCreateSpec.builder().addEmbed(embed);
-
-            if (content != null) {
-                messageBuilder
-                        .content(content)
-                        .allowedMentions(AllowedMentions.builder()
-                                .allowUser(Snowflake.of(selectedWinner.candidateId()))
-                                .build());
-            }
-
             return getVotingChannel()
-                    .flatMap(channel -> channel.createMessage(messageBuilder.build()))
-                    .doOnSuccess(message -> log.info(
-                            "Member of the Week results announced | message={}",
-                            message.getId().asString()))
+                    .flatMap(channel -> channel.createMessage(
+                            messageFactory.createResultsMessage(winners, selectedWinner, totalVotes, locale)))
+                    .doOnSuccess(this::logResultsAnnounced)
                     .then();
         });
     }
 
-    private String createResultsDescription(
-            List<MemberOfTheWeekVoteCount> winners,
-            MemberOfTheWeekVoteCount selectedWinner,
-            long totalVotes,
-            Locale locale) {
-        String result;
-        if (winners.isEmpty()) {
-            result = i18nManager.localize("member_of_the_week.results.no_votes", locale);
-        } else if (winners.size() == 1) {
-            MemberOfTheWeekVoteCount winner = winners.getFirst();
-
-            result = i18nManager.localize(
-                    "member_of_the_week.results.winner",
-                    locale,
-                    "<@" + winner.candidateId() + ">",
-                    winner.votes(),
-                    i18nManager.localize(
-                            winner.votes() == 1
-                                    ? "member_of_the_week.results.vote"
-                                    : "member_of_the_week.results.votes",
-                            locale));
-        } else {
-            long voteCount = winners.getFirst().votes();
-
-            String mentions = winners.stream()
-                    .map(winner -> "<@" + winner.candidateId() + ">")
-                    .reduce((first, second) -> first + ", " + second)
-                    .orElse("");
-
-            result = i18nManager.localize(
-                    "member_of_the_week.results.tie",
-                    locale,
-                    mentions,
-                    voteCount,
-                    i18nManager.localize(
-                            voteCount == 1 ? "member_of_the_week.results.vote" : "member_of_the_week.results.votes",
-                            locale),
-                    "<@" + selectedWinner.candidateId() + ">");
+    private void logRoundRotated(MemberOfTheWeekRound round) {
+        if (round == null) {
+            return;
         }
+        log.info("Member of the Week round rotated | roundId={} | endsAt={}", round.getId(), round.getEndsAt());
+    }
 
-        return result + "\n\n" + i18nManager.localize("member_of_the_week.results.total", locale, totalVotes);
+    private void logRotationFailure(Throwable error) {
+        log.error("Failed to rotate Member of the Week round", error);
+    }
+
+    private void logInitialRoundOpened(MemberOfTheWeekRound round) {
+        if (round == null) {
+            return;
+        }
+        log.info("Initial Member of the Week round opened | roundId={} | endsAt={}", round.getId(), round.getEndsAt());
+    }
+
+    private void logVotingMessageChecked(MemberOfTheWeekRound round) {
+        log.info(
+                "Checked Member of the Week voting message | roundId={} | messageId={}",
+                round.getId(),
+                round.getMessageId());
+    }
+
+    private Mono<MemberOfTheWeekRound> keepRoundAfterRefreshFailure(MemberOfTheWeekRound round, Throwable error) {
+        log.warn(
+                "Could not refresh Member of the Week voting message | roundId={} | messageId={}",
+                round.getId(),
+                round.getMessageId(),
+                error);
+        return Mono.just(round);
+    }
+
+    private Mono<MemberOfTheWeekRound> rollbackFailedRound(MemberOfTheWeekRound savedRound, Throwable error) {
+        log.error(
+                "Failed to send voting message; deleting newly created round | roundId={}", savedRound.getId(), error);
+        return roundRepository.delete(savedRound).then(Mono.error(error));
+    }
+
+    private void logVotingMessageSent(Message message) {
+        log.info(
+                "Member of the Week voting message sent | channel={} | message={}",
+                properties.channelId(),
+                message.getId().asString());
+    }
+
+    private void logResultsAnnounced(Message message) {
+        log.info(
+                "Member of the Week results announced | message={}",
+                message.getId().asString());
     }
 
     private Mono<Locale> getGuildLocale() {

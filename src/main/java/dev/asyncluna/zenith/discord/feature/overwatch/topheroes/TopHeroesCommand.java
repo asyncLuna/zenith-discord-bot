@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
 @Command(name = "top_heroes", description = "See a player's most played Overwatch heroes.")
 @CommandOption(
         name = "player_id",
-        description = "The BattleTag (e.g LUNAǃ#2788).",
+        description = "The BattleTag (e.g LUNAÃ‡Æ’#2788).",
         type = ApplicationCommandOption.Type.STRING,
         required = true)
 @CommandOption(

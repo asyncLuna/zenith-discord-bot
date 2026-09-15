@@ -18,7 +18,10 @@ public class GuildLeaveListener implements EventListener<GuildDeleteEvent> {
     public Mono<Void> execute(GuildDeleteEvent event) {
         return guildSettingsRepository
                 .deleteById(event.getGuildId().asString())
-                .doOnSuccess(unused -> log.info(
-                        "Deleted settings for guild: '{}'", event.getGuildId().asString()));
+                .doOnSuccess(unused -> logSettingsDeleted(event));
+    }
+
+    private void logSettingsDeleted(GuildDeleteEvent event) {
+        log.info("Deleted settings for guild: '{}'", event.getGuildId().asString());
     }
 }

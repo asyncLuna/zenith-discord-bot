@@ -1,6 +1,7 @@
 package dev.asyncluna.zenith.memberoftheweek.scheduler;
 
 import dev.asyncluna.zenith.memberoftheweek.MemberOfTheWeekRoundService;
+import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekRound;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,11 +23,15 @@ public class MemberOfTheWeekExpiryJob implements Job {
         try {
             roundService
                     .closeExpiredRound()
-                    .doOnNext(round -> log.info("Expired Member of the Week round closed | roundId={}", round.getId()))
+                    .doOnNext(this::logExpiredRoundClosed)
                     .block(Duration.ofMinutes(2));
         } catch (Exception exception) {
             log.error("Member of the Week expiry check failed", exception);
             throw new JobExecutionException(exception, true);
         }
+    }
+
+    private void logExpiredRoundClosed(MemberOfTheWeekRound round) {
+        log.info("Expired Member of the Week round closed | roundId={}", round.getId());
     }
 }

@@ -64,7 +64,7 @@ public class CommandDispatcher {
 
                     CommandContext ctx = new CommandContext(event, settings, i18nManager);
 
-                    return command.handle(ctx)
+                    return command.handleAsync(ctx)
                             .then()
                             .onErrorResume(
                                     commandException -> commandErrorHandler.handle(ctx, commandName, commandException));
@@ -80,7 +80,7 @@ public class CommandDispatcher {
 
             if (command == null) return event.respondWithSuggestions(Collections.emptyList());
 
-            return command.autocomplete(event).onErrorResume(exception -> {
+            return command.autocompleteAsync(event).onErrorResume(exception -> {
                 log.error(
                         "Unhandled exception during autocomplete execution for command '/{}'", commandName, exception);
                 return event.respondWithSuggestions(Collections.emptyList());

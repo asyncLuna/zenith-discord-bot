@@ -16,6 +16,6 @@ public class MessageCreateListener implements EventListener<MessageCreateEvent> 
 
     @Override
     public Mono<Void> execute(MessageCreateEvent event) {
-        return uwuLockService.handleMessageCreate(event);
+        return uwuLockService.handleMessageCreateAsync(event);
     }
 }

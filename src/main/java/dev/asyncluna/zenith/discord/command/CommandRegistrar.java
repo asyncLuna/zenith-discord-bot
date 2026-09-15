@@ -6,10 +6,12 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 @Component
+@Profile("!test")
 @RequiredArgsConstructor
 @Slf4j
 public class CommandRegistrar implements SmartInitializingSingleton {
@@ -19,8 +21,12 @@ public class CommandRegistrar implements SmartInitializingSingleton {
     @Override
     public void afterSingletonsInstantiated() {
         registerGlobalSlashCommands()
-                .doOnSubscribe(__ -> log.info("Starting global Discord application command synchronization"))
+                .doOnSubscribe(__ -> logCommandSynchronizationStarted())
                 .subscribe();
+    }
+
+    private void logCommandSynchronizationStarted() {
+        log.info("Starting global Discord application command synchronization");
     }
 
     private Mono<Void> registerGlobalSlashCommands() {
@@ -34,12 +40,15 @@ public class CommandRegistrar implements SmartInitializingSingleton {
                         .getApplicationService()
                         .bulkOverwriteGlobalApplicationCommand(appId, requests)
                         .collectList()
-                        .doOnNext(data ->
-                                log.info("Successfully synchronized {} global application command(s)", data.size()))
+                        .doOnNext(this::logCommandsSynchronized)
                         .onErrorResume(exception -> {
                             log.error("Failed to register global application slash commands", exception);
                             return Mono.empty();
                         }))
                 .then();
+    }
+
+    private void logCommandsSynchronized(List<?> commands) {
+        log.info("Successfully synchronized {} global application command(s)", commands.size());
     }
 }

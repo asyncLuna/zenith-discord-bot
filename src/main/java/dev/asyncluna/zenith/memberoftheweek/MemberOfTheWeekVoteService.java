@@ -3,6 +3,7 @@ package dev.asyncluna.zenith.memberoftheweek;
 import dev.asyncluna.zenith.memberoftheweek.exception.AlreadyVotedException;
 import dev.asyncluna.zenith.memberoftheweek.exception.SelfVoteException;
 import dev.asyncluna.zenith.memberoftheweek.exception.VotingRoundClosedException;
+import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekRound;
 import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekRoundStatus;
 import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekVote;
 import dev.asyncluna.zenith.memberoftheweek.repository.MemberOfTheWeekRoundRepository;
@@ -25,47 +26,68 @@ public class MemberOfTheWeekVoteService {
     private final MemberOfTheWeekDiscordNotifier discordNotifier;
 
     public Mono<Void> recordVote(String roundId, String guildId, String voterId, String candidateId) {
-        if (voterId.equals(candidateId)) {
-            return Mono.error(new SelfVoteException());
-        }
-
         Instant now = Instant.now(memberOfTheWeekClock);
 
+        return validateCandidate(voterId, candidateId)
+                .then(findOpenRound(roundId, guildId, now))
+                .flatMap(round -> saveVote(round.getId(), guildId, voterId, candidateId, now))
+                .onErrorMap(DuplicateKeyException.class, error -> new AlreadyVotedException())
+                .flatMap(this::writeVoteLog)
+                .doOnSuccess(this::logVoteRecorded)
+                .then();
+    }
+
+    private Mono<Void> validateCandidate(String voterId, String candidateId) {
+        return voterId.equals(candidateId) ? Mono.error(new SelfVoteException()) : Mono.empty();
+    }
+
+    private Mono<MemberOfTheWeekRound> findOpenRound(String roundId, String guildId, Instant now) {
         return roundRepository
                 .findById(roundId)
-                .filter(round -> round.getGuildId().equals(guildId))
-                .filter(round -> round.getStatus() == MemberOfTheWeekRoundStatus.OPEN)
-                .filter(round -> round.getStartsAt() != null)
-                .filter(round -> round.getEndsAt() != null)
-                .filter(round -> !now.isBefore(round.getStartsAt()))
-                .filter(round -> now.isBefore(round.getEndsAt()))
-                .switchIfEmpty(Mono.error(new VotingRoundClosedException()))
-                .flatMap(round -> voteRepository.save(MemberOfTheWeekVote.builder()
-                        .roundId(round.getId())
-                        .guildId(guildId)
-                        .voterId(voterId)
-                        .candidateId(candidateId)
-                        .createdAt(now)
-                        .build()))
-                .onErrorMap(DuplicateKeyException.class, error -> new AlreadyVotedException())
-                .flatMap(vote -> discordNotifier
-                        .sendVoteLog(vote)
-                        .onErrorResume(error -> {
-                            log.error(
-                                    "Vote was saved, but the Discord vote log failed | round={} | voter={} | candidate={}",
-                                    vote.getRoundId(),
-                                    vote.getVoterId(),
-                                    vote.getCandidateId(),
-                                    error);
+                .filter(round -> belongsToGuildAndIsOpen(round, guildId, now))
+                .switchIfEmpty(Mono.error(new VotingRoundClosedException()));
+    }
 
-                            return Mono.empty();
-                        })
-                        .thenReturn(vote))
-                .doOnSuccess(vote -> log.info(
-                        "Member of the Week vote recorded | round={} | voter={} | candidate={}",
-                        vote.getRoundId(),
-                        vote.getVoterId(),
-                        vote.getCandidateId()))
-                .then();
+    private boolean belongsToGuildAndIsOpen(MemberOfTheWeekRound round, String guildId, Instant now) {
+        return round.getGuildId().equals(guildId)
+                && round.getStatus() == MemberOfTheWeekRoundStatus.OPEN
+                && round.getStartsAt() != null
+                && round.getEndsAt() != null
+                && !now.isBefore(round.getStartsAt())
+                && now.isBefore(round.getEndsAt());
+    }
+
+    private Mono<MemberOfTheWeekVote> saveVote(
+            String roundId, String guildId, String voterId, String candidateId, Instant now) {
+        return voteRepository.save(MemberOfTheWeekVote.builder()
+                .roundId(roundId)
+                .guildId(guildId)
+                .voterId(voterId)
+                .candidateId(candidateId)
+                .createdAt(now)
+                .build());
+    }
+
+    private Mono<MemberOfTheWeekVote> writeVoteLog(MemberOfTheWeekVote vote) {
+        return discordNotifier
+                .sendVoteLog(vote)
+                .onErrorResume(error -> {
+                    log.error(
+                            "Vote was saved, but the Discord vote log failed | round={} | voter={} | candidate={}",
+                            vote.getRoundId(),
+                            vote.getVoterId(),
+                            vote.getCandidateId(),
+                            error);
+                    return Mono.empty();
+                })
+                .thenReturn(vote);
+    }
+
+    private void logVoteRecorded(MemberOfTheWeekVote vote) {
+        log.info(
+                "Member of the Week vote recorded | round={} | voter={} | candidate={}",
+                vote.getRoundId(),
+                vote.getVoterId(),
+                vote.getCandidateId());
     }
 }

@@ -7,6 +7,7 @@ import dev.asyncluna.zenith.memberoftheweek.config.MemberOfTheWeekProperties;
 import dev.asyncluna.zenith.memberoftheweek.model.MemberOfTheWeekVote;
 import discord4j.common.util.Snowflake;
 import discord4j.core.GatewayDiscordClient;
+import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.channel.MessageChannel;
 import discord4j.core.spec.EmbedCreateSpec;
 import discord4j.core.spec.MessageCreateSpec;
@@ -71,10 +72,14 @@ public class MemberOfTheWeekDiscordNotifier {
                         "Member of the Week log channel does not exist or is not a message channel: "
                                 + configuredChannelId)))
                 .flatMap(channel -> channel.createMessage(message))
-                .doOnSuccess(createdMessage -> log.info(
-                        "Member of the Week vote log sent | channel={} | message={}",
-                        configuredChannelId,
-                        createdMessage.getId().asString()))
+                .doOnSuccess(createdMessage -> logVoteLogSent(configuredChannelId, createdMessage))
                 .then();
+    }
+
+    private void logVoteLogSent(String channelId, Message createdMessage) {
+        log.info(
+                "Member of the Week vote log sent | channel={} | message={}",
+                channelId,
+                createdMessage.getId().asString());
     }
 }

@@ -37,22 +37,13 @@ public class BanReasonListener implements EventListener<BanEvent> {
         return Mono.just(event)
                 .delayElement(Duration.ofSeconds(1))
                 .flatMap(e -> e.getGuild()
-                        .doOnNext(guild -> log.info(
-                                "Fetching ban audit log | guild={} | bannedUser={}",
-                                guild.getId().asString(),
-                                e.getUser().getId().asString()))
+                        .doOnNext(guild -> logAuditLogFetch(guild, e))
                         .flatMap(guild -> guild.getAuditLog(AuditLogQuerySpec.builder()
                                         .actionType(ActionType.MEMBER_BAN_ADD)
                                         .build())
-                                .doOnNext(part -> log.info(
-                                        "Received audit log part | guild={} | entries={}",
-                                        part.getGuildId().asString(),
-                                        part.getEntries().size()))
+                                .doOnNext(this::logAuditLogPartReceived)
                                 .next()
-                                .switchIfEmpty(Mono.fromRunnable(() -> log.info(
-                                        "No audit log part returned for ban event | guild={} | bannedUser={}",
-                                        e.getGuildId().asString(),
-                                        e.getUser().getId().asString())))
+                                .switchIfEmpty(Mono.fromRunnable(() -> logNoAuditLogPart(e)))
                                 .flatMap(part -> processAuditPart(part, e))))
                 .onErrorResume(this::handleException)
                 .then();
@@ -91,11 +82,7 @@ public class BanReasonListener implements EventListener<BanEvent> {
 
                             return entry.getResponsibleUserId()
                                     .map(responsible -> event.getGuild()
-                                            .doOnNext(guild -> log.info(
-                                                    "Sending reminder to channel | guild={} | channelId={} | moderator={}",
-                                                    guild.getId().asString(),
-                                                    MOD_CHANNEL_ID.asString(),
-                                                    responsible.asString()))
+                                            .doOnNext(guild -> logReminderSend(guild, responsible))
                                             .flatMap(guild -> guildSettingsProvider
                                                     .get(part.getGuildId().asString())
                                                     .map(settings -> settings.getModerationLogChannelId() == null
@@ -105,10 +92,7 @@ public class BanReasonListener implements EventListener<BanEvent> {
                                                             : Snowflake.of(settings.getModerationLogChannelId()))
                                                     .flatMap(guild::getChannelById))
                                             .cast(TextChannel.class)
-                                            .doOnNext(channel -> log.info(
-                                                    "Resolved reminder channel | name={} | id={}",
-                                                    channel.getName(),
-                                                    channel.getId().asString()))
+                                            .doOnNext(this::logReminderChannelResolved)
                                             .flatMap(channel -> guildSettingsProvider
                                                     .get(part.getGuildId().asString())
                                                     .map(settings -> SupportedLocale.forLanguageTag(
@@ -150,5 +134,41 @@ public class BanReasonListener implements EventListener<BanEvent> {
 
     private boolean isMissingReason(String reason) {
         return reason == null || reason.isBlank() || reason.equalsIgnoreCase(DEFAULT_BAN_REASON);
+    }
+
+    private void logAuditLogFetch(discord4j.core.object.entity.Guild guild, BanEvent event) {
+        log.info(
+                "Fetching ban audit log | guild={} | bannedUser={}",
+                guild.getId().asString(),
+                event.getUser().getId().asString());
+    }
+
+    private void logAuditLogPartReceived(AuditLogPart part) {
+        log.info(
+                "Received audit log part | guild={} | entries={}",
+                part.getGuildId().asString(),
+                part.getEntries().size());
+    }
+
+    private void logNoAuditLogPart(BanEvent event) {
+        log.info(
+                "No audit log part returned for ban event | guild={} | bannedUser={}",
+                event.getGuildId().asString(),
+                event.getUser().getId().asString());
+    }
+
+    private void logReminderSend(discord4j.core.object.entity.Guild guild, Snowflake moderatorId) {
+        log.info(
+                "Sending reminder to channel | guild={} | channelId={} | moderator={}",
+                guild.getId().asString(),
+                MOD_CHANNEL_ID.asString(),
+                moderatorId.asString());
+    }
+
+    private void logReminderChannelResolved(TextChannel channel) {
+        log.info(
+                "Resolved reminder channel | name={} | id={}",
+                channel.getName(),
+                channel.getId().asString());
     }
 }

@@ -148,7 +148,7 @@ public class HeroDataButtonListener implements EventListener<ButtonInteractionEv
             if (heroData.perks().major() != null && !heroData.perks().major().isEmpty()) {
                 hasPerks = true;
                 String majorHeader = i18nManager.localize("hero.perks.major", currentLocale);
-                embedBuilder.addField("🔹 " + majorHeader, "-------------------------", false);
+                embedBuilder.addField("Ã°Å¸â€Â¹ " + majorHeader, "-------------------------", false);
                 for (Perk perk : heroData.perks().major()) {
                     embedBuilder.addField(perk.name(), perk.description(), false);
                 }
@@ -157,7 +157,7 @@ public class HeroDataButtonListener implements EventListener<ButtonInteractionEv
             if (heroData.perks().minor() != null && !heroData.perks().minor().isEmpty()) {
                 hasPerks = true;
                 String minorHeader = i18nManager.localize("hero.perks.minor", currentLocale);
-                embedBuilder.addField("🔸 " + minorHeader, "-------------------------", false);
+                embedBuilder.addField("Ã°Å¸â€Â¸ " + minorHeader, "-------------------------", false);
                 for (Perk perk : heroData.perks().minor()) {
                     embedBuilder.addField(perk.name(), perk.description(), false);
                 }

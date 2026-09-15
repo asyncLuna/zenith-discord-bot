@@ -35,21 +35,8 @@ public class MemberOfTheWeekVoteListener implements EventListener<SelectMenuInte
         return event.deferReply()
                 .withEphemeral(true)
                 .then(handleVote(event))
-                .onErrorResume(
-                        SelfVoteException.class, error -> localizedReply(event, "member_of_the_week.vote.self_vote"))
-                .onErrorResume(
-                        AlreadyVotedException.class,
-                        error -> localizedReply(event, "member_of_the_week.vote.already_voted"))
-                .onErrorResume(
-                        VotingRoundClosedException.class,
-                        error -> localizedReply(event, "member_of_the_week.vote.round_closed"))
-                .onErrorResume(
-                        MemberNotFoundException.class,
-                        error -> localizedReply(event, "member_of_the_week.vote.member_not_found"))
-                .onErrorResume(
-                        InvalidSelectionException.class,
-                        error -> localizedReply(event, "member_of_the_week.vote.invalid_selection"))
-                .doOnError(error -> log.error("Unexpected error while handling a Member of the Week vote", error))
+                .onErrorResume(error -> replyForError(event, error))
+                .doOnError(this::logUnexpectedVoteError)
                 .onErrorResume(error -> localizedReply(event, "member_of_the_week.vote.failed")
                         .onErrorResume(replyError -> {
                             log.error("Failed to edit deferred Member of the Week interaction response", replyError);
@@ -57,6 +44,10 @@ public class MemberOfTheWeekVoteListener implements EventListener<SelectMenuInte
                             return Mono.empty();
                         })
                         .then());
+    }
+
+    private void logUnexpectedVoteError(Throwable error) {
+        log.error("Unexpected error while handling a Member of the Week vote", error);
     }
 
     private Mono<Void> handleVote(SelectMenuInteractionEvent event) {
@@ -73,23 +64,40 @@ public class MemberOfTheWeekVoteListener implements EventListener<SelectMenuInte
         return event.getInteraction()
                 .getGuild()
                 .switchIfEmpty(Mono.error(new IllegalStateException("The interaction did not occur in a guild.")))
-                .flatMap(guild -> guild.getMemberById(candidateId)
-                        .switchIfEmpty(Mono.error(new MemberNotFoundException()))
-                        .flatMap(candidate -> {
-                            if (candidate.isBot()) {
-                                return localizedReply(event, "member_of_the_week.vote.bot");
-                            }
-
-                            return voteService
-                                    .recordVote(
-                                            roundId,
-                                            guild.getId().asString(),
-                                            voterId.asString(),
-                                            candidateId.asString())
-                                    .then(localizedReply(
-                                            event, "member_of_the_week.vote.recorded", candidate.getDisplayName()));
-                        }))
+                .flatMap(guild -> recordVote(event, guild, roundId, candidateId, voterId))
                 .then();
+    }
+
+    private Mono<Void> recordVote(
+            SelectMenuInteractionEvent event,
+            discord4j.core.object.entity.Guild guild,
+            String roundId,
+            Snowflake candidateId,
+            Snowflake voterId) {
+        return guild.getMemberById(candidateId)
+                .switchIfEmpty(Mono.error(new MemberNotFoundException()))
+                .flatMap(candidate -> {
+                    if (candidate.isBot()) {
+                        return localizedReply(event, "member_of_the_week.vote.bot");
+                    }
+                    return voteService
+                            .recordVote(roundId, guild.getId().asString(), voterId.asString(), candidateId.asString())
+                            .then(localizedReply(
+                                    event, "member_of_the_week.vote.recorded", candidate.getDisplayName()));
+                });
+    }
+
+    private Mono<Void> replyForError(SelectMenuInteractionEvent event, Throwable error) {
+        String key =
+                switch (error) {
+                    case SelfVoteException ignored -> "member_of_the_week.vote.self_vote";
+                    case AlreadyVotedException ignored -> "member_of_the_week.vote.already_voted";
+                    case VotingRoundClosedException ignored -> "member_of_the_week.vote.round_closed";
+                    case MemberNotFoundException ignored -> "member_of_the_week.vote.member_not_found";
+                    case InvalidSelectionException ignored -> "member_of_the_week.vote.invalid_selection";
+                    default -> null;
+                };
+        return key == null ? Mono.error(error) : localizedReply(event, key);
     }
 
     private Mono<Void> localizedReply(SelectMenuInteractionEvent event, String key, Object... args) {

@@ -75,12 +75,12 @@ public class AnimalApiService {
                 })
                 .retrieve()
                 .bodyToMono(String.class)
-                .doOnNext(json -> log.info("Received JSON response for endpoint={}: {}", endpoint, json))
+                .doOnNext(json -> logJsonResponse(endpoint, json))
                 .map(json -> HttpUtils.OBJECT_MAPPER.readValue(json, type))
                 .onErrorMap(
                         IOException.class,
                         exception -> new RuntimeException("Failed to parse JSON response", exception))
-                .doOnNext(response -> cache.put(endpoint, cacheKey, response, endpoint.getTtlSeconds()))
+                .doOnNext(response -> cacheResponse(endpoint, cacheKey, response))
                 .then(Mono.defer(() -> {
                     T response = cache.get(endpoint, cacheKey, type);
                     if (response != null) {
@@ -91,5 +91,13 @@ public class AnimalApiService {
                         return Mono.empty();
                     }
                 }));
+    }
+
+    private void logJsonResponse(AnimalApiEndpoint endpoint, String json) {
+        log.info("Received JSON response for endpoint={}: {}", endpoint, json);
+    }
+
+    private <T> void cacheResponse(AnimalApiEndpoint endpoint, String cacheKey, T response) {
+        cache.put(endpoint, cacheKey, response, endpoint.getTtlSeconds());
     }
 }

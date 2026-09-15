@@ -108,7 +108,7 @@ public class ConfessionModalListener implements EventListener<ModalSubmitInterac
                                     .orElse(null);
 
                             TextChannel logChannel = channels.stream()
-                                    .filter(channel -> channel.getName().equalsIgnoreCase("confessions﹒log"))
+                                    .filter(channel -> channel.getName().equalsIgnoreCase("confessionsÃ¯Â¹â€™log"))
                                     .findFirst()
                                     .orElse(null);
 
@@ -284,7 +284,7 @@ public class ConfessionModalListener implements EventListener<ModalSubmitInterac
                 .flatMapMany(guild -> guild.getChannels())
                 .filter(channel -> channel instanceof TextChannel)
                 .cast(TextChannel.class)
-                .filter(channel -> channel.getName().equalsIgnoreCase("confessions﹒log"))
+                .filter(channel -> channel.getName().equalsIgnoreCase("confessionsÃ¯Â¹â€™log"))
                 .next();
     }
 

@@ -16,7 +16,7 @@ import reactor.core.publisher.Mono;
 @Command(name = "link", description = "Link your Overwatch account with your Discord account.", ephemeral = true)
 @CommandOption(
         name = "battle_tag",
-        description = "Case-sensitive BattleTag (e.g. LUNAǃ#2788)",
+        description = "Case-sensitive BattleTag (e.g. LUNAÃ‡Æ’#2788)",
         type = ApplicationCommandOption.Type.STRING,
         required = true)
 @RequiredArgsConstructor
@@ -34,7 +34,7 @@ public class LinkCommand implements BotCommand {
             return ctx.editReply(ctx.localize("error.battle_tag_not_specified")).then();
 
         return accountLinkService
-                .link(discordId, battleTagDashed)
+                .linkAsync(discordId, battleTagDashed)
                 .flatMap(result -> {
                     if (result.isNew()) {
                         return ctx.editReply(ctx.localize("link.success", battleTag));
