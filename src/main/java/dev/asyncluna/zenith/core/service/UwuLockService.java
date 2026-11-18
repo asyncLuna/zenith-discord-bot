@@ -4,6 +4,7 @@ import dev.asyncluna.zenith.core.model.UwuLock;
 import dev.asyncluna.zenith.core.repository.UwuLockRepository;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.object.entity.Member;
+import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +57,7 @@ public class UwuLockService {
     public Mono<Boolean> lockUserAsync(String userId) {
         if (lockedUserIds.contains(userId)) return Mono.just(false);
         return uwuLockRepository
-                .save(new UwuLock(userId))
+                .save(new UwuLock(userId, Instant.now()))
                 .doOnSuccess(saved -> lockedUserIds.add(userId))
                 .thenReturn(true);
     }
@@ -69,7 +70,7 @@ public class UwuLockService {
                 .thenReturn(true);
     }
 
-    public Flux<String> getLockedUsers() {
-        return Flux.fromIterable(lockedUserIds);
+    public Flux<UwuLock> getLockedUsers() {
+        return uwuLockRepository.findAll();
     }
 }

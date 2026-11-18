@@ -11,7 +11,6 @@ import dev.asyncluna.zenith.discord.util.EmbedUtils;
 import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.interaction.SelectMenuInteractionEvent;
 import discord4j.core.object.component.ActionRow;
-import discord4j.core.object.component.LayoutComponent;
 import discord4j.core.spec.EmbedCreateSpec;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +78,7 @@ public class MapSelectListener implements EventListener<SelectMenuInteractionEve
                             .flatMap(map -> {
                                 EmbedCreateSpec embed = createMapEmbed(map, currentLocale);
 
-                                List<LayoutComponent> layoutComponents = new ArrayList<>();
+                                List<ActionRow> layoutComponents = new ArrayList<>();
                                 event.getMessage().ifPresent(message -> message.getComponents()
                                         .forEach(row -> {
                                             if (row instanceof ActionRow actionRow) {

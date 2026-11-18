@@ -7,7 +7,6 @@ import dev.asyncluna.zenith.discord.feature.overwatch.herostats.HeroStatsCommand
 import dev.asyncluna.zenith.discord.util.EmbedUtils;
 import discord4j.core.object.component.ActionRow;
 import discord4j.core.object.component.Button;
-import discord4j.core.object.component.LayoutComponent;
 import discord4j.core.object.entity.Message;
 import discord4j.core.spec.EmbedCreateSpec;
 import java.util.ArrayList;
@@ -59,9 +58,9 @@ public class HeroStatsSelectionRenderer {
         return embed.build();
     }
 
-    public List<LayoutComponent> replaceDetailsButton(Message message, String sessionId, Locale locale) {
+    public List<ActionRow> replaceDetailsButton(Message message, String sessionId, Locale locale) {
         Button detailsButton = Button.primary("hs-btn:" + sessionId, i18nManager.localize("hero.view_details", locale));
-        List<LayoutComponent> components = new ArrayList<>();
+        List<ActionRow> components = new ArrayList<>();
 
         message.getComponents().forEach(component -> {
             if (component instanceof ActionRow actionRow) {

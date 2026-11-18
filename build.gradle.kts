@@ -7,7 +7,7 @@ plugins {
 
 group = "dev.asyncluna"
 
-version = "0.3.0"
+version = "0.3.2"
 
 description = "zenith-discord-bot"
 
@@ -15,11 +15,11 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
 
-extra["sentryVersion"] = "8.27.0"
+extra["sentryVersion"] = "8.64.0"
 
-extra["discord4jVersion"] = "3.3.2"
+extra["discord4jVersion"] = "3.3.3"
 
-extra["commonsLang3Version"] = "3.20.0"
+extra["commonsLang3Version"] = "3.22.0"
 
 extra["commonsTextVersion"] = "1.15.0"
 

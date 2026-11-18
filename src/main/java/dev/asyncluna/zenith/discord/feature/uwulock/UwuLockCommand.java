@@ -1,5 +1,6 @@
 package dev.asyncluna.zenith.discord.feature.uwulock;
 
+import dev.asyncluna.zenith.core.model.UwuLock;
 import dev.asyncluna.zenith.core.service.UwuLockService;
 import dev.asyncluna.zenith.discord.command.BotCommand;
 import dev.asyncluna.zenith.discord.command.Command;
@@ -133,7 +134,7 @@ public class UwuLockCommand implements BotCommand {
         AtomicInteger counter = new AtomicInteger(1);
         return uwuLockService
                 .getLockedUsers()
-                .map(id -> "`#" + counter.getAndIncrement() + ".` - <@" + id + ">")
+                .map(lock -> formatLock(lock, counter.getAndIncrement(), ctx.localize("uwulock.list.unknown_time")))
                 .collect(Collectors.joining("\n"))
                 .flatMap(mentionsList -> {
                     if (mentionsList.isEmpty()) {
@@ -151,5 +152,12 @@ public class UwuLockCommand implements BotCommand {
                                     .build());
                 })
                 .onErrorResume(exception -> Mono.error(new CommandException(ctx.localize("uwulock.error.generic"))));
+    }
+
+    static String formatLock(UwuLock lock, int number, String unknownTime) {
+        String timestamp = lock.createdAt() == null
+                ? unknownTime
+                : "<t:" + lock.createdAt().getEpochSecond() + ":R>";
+        return "`#" + number + ".` - <@" + lock.discordId() + "> - " + timestamp;
     }
 }

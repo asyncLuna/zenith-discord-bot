@@ -4,7 +4,7 @@ import dev.asyncluna.zenith.core.i18n.I18nManager;
 import dev.asyncluna.zenith.core.model.GuildSettings;
 import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.interaction.DeferrableInteractionEvent;
-import discord4j.core.object.component.LayoutComponent;
+import discord4j.core.object.component.TopLevelModalComponent;
 import discord4j.core.object.entity.Message;
 import discord4j.core.spec.InteractionApplicationCommandCallbackReplyMono;
 import discord4j.core.spec.InteractionApplicationCommandCallbackSpec;
@@ -50,7 +50,7 @@ public abstract class DeferrableInteractionContext<E extends DeferrableInteracti
         return getEvent().presentModal();
     }
 
-    public Mono<Void> presentModal(String title, String customId, Collection<LayoutComponent> components) {
+    public Mono<Void> presentModal(String title, String customId, Collection<TopLevelModalComponent> components) {
         return getEvent().presentModal(title, customId, components);
     }
 
