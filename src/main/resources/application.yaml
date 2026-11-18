@@ -32,7 +32,7 @@ zenith:
     guild-id: "1520153947644493905"
     channel-id: "1529817686110896169"
     log-channel-id: "1529817716880441414"
-    role-id: "1526317499862356018"
+    role-id: "1572567577346056202"
     timezone: "Europe/Warsaw"
     cron: "0 0 18 ? * MON"
     voting-duration: 24h

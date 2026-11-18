@@ -204,7 +204,15 @@ public class MemberOfTheWeekRoundService {
         log.info("Closing Member of the Week round | roundId={}", round.getId());
 
         return Mono.zip(findWinners(round.getId()), countVotes(round.getId()))
-                .flatMap(tuple -> announceResults(tuple.getT1(), tuple.getT2()))
+                .flatMap(tuple -> {
+                    List<MemberOfTheWeekVoteCount> winners = tuple.getT1();
+                    MemberOfTheWeekVoteCount selectedWinner = winners.isEmpty()
+                            ? null
+                            : (winners.size() == 1 ? winners.getFirst() : pickRandomWinner(winners));
+
+                    return announceResults(winners, selectedWinner, tuple.getT2())
+                            .then(updateMemberOfTheWeekRole(selectedWinner));
+                })
                 .then(Mono.defer(() -> {
                     round.setStatus(MemberOfTheWeekRoundStatus.CLOSED);
 
@@ -267,9 +275,8 @@ public class MemberOfTheWeekRoundService {
                 .doOnSuccess(this::logVotingMessageSent));
     }
 
-    private Mono<Void> announceResults(List<MemberOfTheWeekVoteCount> winners, long totalVotes) {
-        MemberOfTheWeekVoteCount selectedWinner =
-                winners.isEmpty() ? null : (winners.size() == 1 ? winners.getFirst() : pickRandomWinner(winners));
+    private Mono<Void> announceResults(
+            List<MemberOfTheWeekVoteCount> winners, MemberOfTheWeekVoteCount selectedWinner, long totalVotes) {
         return getGuildLocale().flatMap(locale -> {
             return getVotingChannel()
                     .flatMap(channel -> channel.createMessage(
@@ -277,6 +284,28 @@ public class MemberOfTheWeekRoundService {
                     .doOnSuccess(this::logResultsAnnounced)
                     .then();
         });
+    }
+
+    private Mono<Void> updateMemberOfTheWeekRole(MemberOfTheWeekVoteCount selectedWinner) {
+        if (properties.roleId() == null || properties.roleId().isBlank()) {
+            return Mono.empty();
+        }
+
+        Snowflake roleId = Snowflake.of(properties.roleId());
+        return gatewayDiscordClient
+                .getGuildById(Snowflake.of(properties.guildId()))
+                .flatMap(guild -> guild.getMembers()
+                        .filter(member -> member.getRoleIds().contains(roleId))
+                        .flatMap(member -> member.removeRole(roleId))
+                        .then(
+                                selectedWinner == null
+                                        ? Mono.empty()
+                                        : guild.getMemberById(Snowflake.of(selectedWinner.candidateId()))
+                                                .flatMap(member -> member.addRole(roleId)))
+                        .then())
+                .doOnSuccess(ignored -> log.info(
+                        "Updated Member of the Week role | winner={}",
+                        selectedWinner == null ? "none" : selectedWinner.candidateId()));
     }
 
     private void logRoundRotated(MemberOfTheWeekRound round) {

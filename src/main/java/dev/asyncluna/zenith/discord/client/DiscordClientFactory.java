@@ -29,7 +29,8 @@ public class DiscordClientFactory {
                         Intent.GUILD_MESSAGES,
                         Intent.MESSAGE_CONTENT,
                         Intent.GUILD_MODERATION))
-                .setInitialPresence(shardInfo -> ClientPresence.online(ClientActivity.custom("Pocketing you")))
+                .setInitialPresence(
+                        shardInfo -> ClientPresence.online(ClientActivity.custom("Evil Juno: Wahahahahahahah!")))
                 .login()
                 .block();
     }
