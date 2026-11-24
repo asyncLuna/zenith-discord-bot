@@ -9,6 +9,7 @@ public record MemberOfTheWeekProperties(
         String channelId,
         String logChannelId,
         String roleId,
+        String votingNotificationRoleId,
         String timezone,
         String cron,
         Duration votingDuration) {}

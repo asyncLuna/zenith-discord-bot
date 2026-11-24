@@ -2,7 +2,7 @@
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-6DB33F?logo=springboot&logoColor=white)
-![Discord4J](https://img.shields.io/badge/Discord4J-3.3.2-5865F2?logo=discord&logoColor=white)
+![Discord4J](https://img.shields.io/badge/Discord4J-3.3.3-5865F2?logo=discord&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-8.3-47A248?logo=mongodb&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-Kotlin%20DSL-02303A?logo=gradle&logoColor=white)
 
@@ -66,7 +66,7 @@ MongoDB is the durable store for application state. External APIs are used for r
 | --- | --- |
 | Language | Java 21 |
 | Framework | Spring Boot 4.0.6 |
-| Discord | Discord4J 3.3.2 |
+| Discord | Discord4J 3.3.3 |
 | Reactive runtime | Project Reactor, Spring WebFlux |
 | Persistence | Spring Data MongoDB Reactive |
 | Database | MongoDB 8.3.4 in Docker Compose |
@@ -87,13 +87,7 @@ Zenith requests the `GUILDS`, `GUILD_MEMBERS`, `GUILD_MESSAGES`, `MESSAGE_CONTEN
 
 ## Quick start
 
-Copy the example environment file and set the Discord token and MongoDB credentials:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-For local development, start MongoDB through Docker Compose or use another MongoDB instance, then run:
+For local development, set the Discord token and a MongoDB URI reachable from your machine, then run:
 
 ```powershell
 $env:DISCORD_BOT_TOKEN = "your-discord-bot-token"
@@ -103,6 +97,8 @@ $env:SPRING_PROFILES_ACTIVE = "dev"
 ```
 
 The bot connects to Discord and synchronizes global slash commands during startup. Global command changes can take time to propagate through Discord.
+
+The MongoDB service in Docker Compose is only available to containers on its private network; it does not publish port `27017` to the host. To run the application directly with `bootRun`, use a separately accessible MongoDB instance. To start the bot and MongoDB together, use the Docker Compose instructions below.
 
 ## Commands
 
@@ -142,6 +138,8 @@ Member of the Week settings are under `zenith.member-of-the-week` in `src/main/r
 | Property | Default | Description |
 | --- | --- | --- |
 | `guild-id` | configured in `application.yaml` | Guild used by the scheduled voting workflow. |
+| `role-id` | configured in `application.yaml` | Role assigned to the current Member of the Week winner. |
+| `voting-notification-role-id` | `1526317499862356018` | Role pinged when a voting round opens; leave blank to disable the ping. |
 | `timezone` | `Europe/Warsaw` | Time zone used for scheduling and display. |
 | `cron` | `0 0 18 ? * MON` | Opens a round on Mondays at 18:00. |
 | `voting-duration` | `24h` | Duration of an automatic voting round. |
@@ -150,11 +148,11 @@ Do not commit `.env` files, bot tokens, database passwords, or Sentry DSNs.
 
 ## Docker Compose
 
-Build the application JAR, then start MongoDB and the bot:
+Copy and edit `.env` to set the Discord token and MongoDB credentials. Docker Compose reads this file; a locally launched Gradle process does not load it automatically. Then build the application JAR and start MongoDB and the bot:
 
 ```powershell
 Copy-Item .env.example .env
-.\gradlew.bat bootJar
+.\gradlew.bat clean bootJar
 docker compose up --build -d
 ```
 
@@ -172,15 +170,17 @@ docker compose down
 
 MongoDB data is stored in the named `mongo-data` volume. Removing that volume permanently discards the local database.
 
-## Testing
+## Build and testing
 
-Run the test suite with:
+Check formatting, run the tests, and build the executable Spring Boot JAR with:
 
 ```powershell
-.\gradlew.bat test
+.\gradlew.bat spotlessCheck clean test bootJar
 ```
 
-The current test suite verifies that the Spring application context loads. MongoDB must be available through `SPRING_MONGODB_URI` when the context test is run.
+The JAR is written to `build/libs/`. The tests cover the Spring application context, uwulock behavior, and Member of the Week failure handling. The context test needs MongoDB configured through `SPRING_MONGODB_URI`; it mocks the Discord gateway and does not need a bot token.
+
+GitHub Actions runs tests and builds the JAR for pushes, pull requests, and manual runs. Its MongoDB service is provided by the workflow, and a successful build uploads the executable JAR as the `zenith-discord-bot-jar` artifact.
 
 ## Project structure
 
@@ -210,7 +210,7 @@ src/main/resources
 
 ## Contributing
 
-Run `./gradlew test` (or `gradlew.bat test` on Windows) before opening a pull request. Keep secrets and local configuration untracked, and add tests for behavior changes where practical.
+Run `bash ./gradlew test` (or `gradlew.bat test` on Windows) before opening a pull request. Keep secrets and local configuration untracked, and add tests for behavior changes where practical.
 
 ## License
 

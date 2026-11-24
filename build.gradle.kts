@@ -7,7 +7,7 @@ plugins {
 
 group = "dev.asyncluna"
 
-version = "0.3.3"
+version = "0.4.0"
 
 description = "zenith-discord-bot"
 

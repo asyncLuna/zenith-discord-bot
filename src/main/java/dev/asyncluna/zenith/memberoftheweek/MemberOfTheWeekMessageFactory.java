@@ -73,10 +73,11 @@ public class MemberOfTheWeekMessageFactory {
     }
 
     private void addRoleMention(MessageCreateSpec.Builder message) {
-        if (properties.roleId() == null || properties.roleId().isBlank()) {
+        if (properties.votingNotificationRoleId() == null
+                || properties.votingNotificationRoleId().isBlank()) {
             return;
         }
-        Snowflake roleId = Snowflake.of(properties.roleId());
+        Snowflake roleId = Snowflake.of(properties.votingNotificationRoleId());
         message.content("<@&" + roleId.asString() + ">")
                 .allowedMentions(AllowedMentions.builder().allowRole(roleId).build());
     }

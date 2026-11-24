@@ -52,7 +52,7 @@ class MemberOfTheWeekRoundServiceTest {
                 .id("round")
                 .status(MemberOfTheWeekRoundStatus.CLOSED)
                 .build();
-        var properties = new MemberOfTheWeekProperties("1", "2", null, "3", "UTC", "", Duration.ofDays(7));
+        var properties = new MemberOfTheWeekProperties("1", "2", null, "3", null, "UTC", "", Duration.ofDays(7));
         var service = new MemberOfTheWeekRoundService(
                 gateway, properties, repository, settings, mock(I18nManager.class), factory, mongo, Clock.systemUTC());
 

@@ -1,0 +1,59 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongodb:
+        image: mongo:8.3.4
+        env:
+          MONGO_INITDB_ROOT_USERNAME: zenith
+          MONGO_INITDB_ROOT_PASSWORD: zenith-ci-password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DISCORD_BOT_TOKEN: ""
+      SPRING_MONGODB_URI: mongodb://zenith:zenith-ci-password@localhost:27017/zenith?authSource=admin
+      SENTRY_DSN: ""
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run tests and build JAR
+        run: bash ./gradlew --no-daemon spotlessCheck clean test bootJar
+
+      - name: Upload executable JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenith-discord-bot-jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-plain.jar
+          if-no-files-found: error
+          retention-days: 14
