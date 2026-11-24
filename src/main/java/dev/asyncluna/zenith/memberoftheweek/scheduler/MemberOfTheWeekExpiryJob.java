@@ -27,7 +27,7 @@ public class MemberOfTheWeekExpiryJob implements Job {
                     .block(Duration.ofMinutes(2));
         } catch (Exception exception) {
             log.error("Member of the Week expiry check failed", exception);
-            throw new JobExecutionException(exception, true);
+            throw new JobExecutionException(exception, false);
         }
     }
 

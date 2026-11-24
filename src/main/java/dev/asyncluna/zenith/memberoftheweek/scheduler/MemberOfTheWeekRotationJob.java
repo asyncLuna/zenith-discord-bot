@@ -29,7 +29,7 @@ public class MemberOfTheWeekRotationJob implements Job {
         } catch (Exception exception) {
             log.error("Member of the Week Quartz job failed", exception);
 
-            throw new JobExecutionException(exception, true);
+            throw new JobExecutionException(exception, false);
         }
     }
 }

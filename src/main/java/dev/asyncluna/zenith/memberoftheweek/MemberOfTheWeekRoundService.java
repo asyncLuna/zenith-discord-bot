@@ -27,10 +27,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -89,9 +91,8 @@ public class MemberOfTheWeekRoundService {
     }
 
     /**
-     * Refreshes the persisted voting message without creating a second message.
-     * This is useful after changing translations or embed formatting while a round
-     * is still active.
+     * Refreshes the persisted voting message without creating a second message. This is useful after
+     * changing translations or embed formatting while a round is still active.
      */
     public Mono<MemberOfTheWeekRound> refreshVotingMessage(MemberOfTheWeekRound round) {
         if (round.getMessageId() == null || round.getMessageId().isBlank()) {
@@ -210,16 +211,23 @@ public class MemberOfTheWeekRoundService {
                             ? null
                             : (winners.size() == 1 ? winners.getFirst() : pickRandomWinner(winners));
 
-                    return announceResults(winners, selectedWinner, tuple.getT2())
-                            .then(updateMemberOfTheWeekRole(selectedWinner));
+                    Query claim = Query.query(
+                            Criteria.where("id").is(round.getId()).and("status").is(MemberOfTheWeekRoundStatus.OPEN));
+                    return mongoTemplate
+                            .findAndModify(
+                                    claim,
+                                    new Update().set("status", MemberOfTheWeekRoundStatus.CLOSED),
+                                    FindAndModifyOptions.options().returnNew(true),
+                                    MemberOfTheWeekRound.class)
+                            .flatMap(closed -> announceResults(winners, selectedWinner, tuple.getT2())
+                                    .then(updateMemberOfTheWeekRole(selectedWinner))
+                                    .thenReturn(closed)
+                                    .doOnError(error -> log.error(
+                                            "Round closed but results announcement or role update failed; manual reconciliation required | roundId={}",
+                                            round.getId(),
+                                            error)));
                 })
-                .then(Mono.defer(() -> {
-                    round.setStatus(MemberOfTheWeekRoundStatus.CLOSED);
-
-                    return roundRepository.save(round);
-                }))
-                .doOnSuccess(
-                        closedRound -> log.info("Member of the Week round closed | roundId={}", closedRound.getId()));
+                .doOnNext(closedRound -> log.info("Member of the Week round closed | roundId={}", closedRound.getId()));
     }
 
     public Mono<Boolean> isPaused() {
@@ -277,13 +285,11 @@ public class MemberOfTheWeekRoundService {
 
     private Mono<Void> announceResults(
             List<MemberOfTheWeekVoteCount> winners, MemberOfTheWeekVoteCount selectedWinner, long totalVotes) {
-        return getGuildLocale().flatMap(locale -> {
-            return getVotingChannel()
-                    .flatMap(channel -> channel.createMessage(
-                            messageFactory.createResultsMessage(winners, selectedWinner, totalVotes, locale)))
-                    .doOnSuccess(this::logResultsAnnounced)
-                    .then();
-        });
+        return getGuildLocale().flatMap(locale -> getVotingChannel()
+                .flatMap(channel -> channel.createMessage(
+                        messageFactory.createResultsMessage(winners, selectedWinner, totalVotes, locale)))
+                .doOnSuccess(this::logResultsAnnounced)
+                .then());
     }
 
     private Mono<Void> updateMemberOfTheWeekRole(MemberOfTheWeekVoteCount selectedWinner) {
@@ -413,7 +419,7 @@ public class MemberOfTheWeekRoundService {
         return guildSettingsRepository
                 .findById(properties.guildId())
                 .map(GuildSettings::getMemberOfTheWeekChannelId)
-                .filter(channelId -> channelId != null && !channelId.isBlank())
+                .filter(channelId -> !channelId.isBlank())
                 .defaultIfEmpty(properties.channelId())
                 .flatMap(this::getVotingChannel);
     }
