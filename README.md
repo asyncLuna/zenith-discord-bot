@@ -1,5 +1,6 @@
 # Zenith Discord Bot
 
+[![Build and test](https://github.com/asyncLuna/zenith-discord-bot/actions/workflows/build.yml/badge.svg)](https://github.com/asyncLuna/zenith-discord-bot/actions/workflows/build.yml)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-6DB33F?logo=springboot&logoColor=white)
 ![Discord4J](https://img.shields.io/badge/Discord4J-3.3.3-5865F2?logo=discord&logoColor=white)
