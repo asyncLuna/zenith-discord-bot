@@ -19,7 +19,7 @@ jobs:
 
     services:
       mongodb:
-        image: mongo:8.3.4
+        image: mongo:7.0.41
         env:
           MONGO_INITDB_ROOT_USERNAME: zenith
           MONGO_INITDB_ROOT_PASSWORD: zenith-ci-password
