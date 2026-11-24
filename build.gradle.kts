@@ -15,7 +15,10 @@ description = "zenith-discord-bot"
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
-repositories { mavenCentral() }
+repositories {
+  maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+  mavenCentral()
+}
 
 dependencyLocking { lockAllConfigurations() }
 

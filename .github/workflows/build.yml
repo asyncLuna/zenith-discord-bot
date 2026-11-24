@@ -52,7 +52,12 @@ jobs:
       - name: Set build version
         id: build-version
         run: |
+          set -euo pipefail
           BASE_VERSION=$(bash ./gradlew --no-daemon -q properties | sed -n 's/^version: //p' | head -n 1)
+          if [[ ! "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Could not determine a valid base version from Gradle (got: '${BASE_VERSION}')." >&2
+            exit 1
+          fi
           VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
           JAR_NAME="zenith-discord-bot-${VERSION}.jar"
           ARTIFACT_NAME="zenith-discord-bot-${VERSION}"
