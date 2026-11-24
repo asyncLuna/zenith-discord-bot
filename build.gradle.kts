@@ -7,13 +7,17 @@ plugins {
 
 group = "dev.asyncluna"
 
-version = "0.4.0"
+val baseVersion = "0.4.0"
+
+version = providers.gradleProperty("buildVersion").orElse(baseVersion).get()
 
 description = "zenith-discord-bot"
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
+
+dependencyLocking { lockAllConfigurations() }
 
 extra["sentryVersion"] = "8.64.0"
 
@@ -45,6 +49,15 @@ dependencies {
 dependencyManagement { imports { mavenBom("io.sentry:sentry-bom:${property("sentryVersion")}") } }
 
 tasks.withType<Test> { useJUnitPlatform() }
+
+tasks.withType<AbstractArchiveTask>().configureEach {
+  isPreserveFileTimestamps = false
+  isReproducibleFileOrder = true
+}
+
+tasks.withType<Jar>().configureEach {
+  manifest { attributes(mapOf("Implementation-Version" to project.version)) }
+}
 
 spotless {
   java {

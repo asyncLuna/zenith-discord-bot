@@ -10,8 +10,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.build-version.outputs.version }}
+      jar-name: ${{ steps.build-version.outputs.jar-name }}
+      artifact-name: ${{ steps.build-version.outputs.artifact-name }}
 
     services:
       mongodb:
@@ -40,20 +44,93 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "21.0.12+7"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Set build version
+        id: build-version
+        run: |
+          BASE_VERSION=$(bash ./gradlew --no-daemon -q properties | sed -n 's/^version: //p' | head -n 1)
+          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          JAR_NAME="zenith-discord-bot-${VERSION}.jar"
+          ARTIFACT_NAME="zenith-discord-bot-${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "jar-name=${JAR_NAME}" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Run tests and build JAR
-        run: bash ./gradlew --no-daemon spotlessCheck clean test bootJar
+        run: >-
+          bash ./gradlew --no-daemon
+          -PbuildVersion=${{ steps.build-version.outputs.version }}
+          spotlessCheck clean test bootJar
+
+      - name: Create JAR checksum
+        run: |
+          cd build/libs
+          sha256sum "${{ steps.build-version.outputs.jar-name }}" > "${{ steps.build-version.outputs.jar-name }}.sha256"
 
       - name: Upload executable JAR
         uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
         with:
-          name: zenith-discord-bot-jar
+          name: ${{ steps.build-version.outputs.artifact-name }}
           path: |
-            build/libs/*.jar
-            !build/libs/*-plain.jar
+            build/libs/${{ steps.build-version.outputs.jar-name }}
+            build/libs/${{ steps.build-version.outputs.jar-name }}.sha256
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download tested JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: release-assets
+
+      - name: Generate release notes from commit history
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          JAR_NAME: ${{ needs.build.outputs.jar-name }}
+        run: |
+          if PREVIOUS_TAG=$(git describe --tags --abbrev=0 "$GITHUB_SHA^" 2>/dev/null); then
+            CHANGE_RANGE="${PREVIOUS_TAG}..${GITHUB_SHA}"
+            CHANGE_HEADER="Commits since ${PREVIOUS_TAG}"
+          else
+            CHANGE_RANGE="$GITHUB_SHA"
+            CHANGE_HEADER="Commits in the available repository history"
+          fi
+          SHA256=$(awk '{print $1}' "release-assets/${JAR_NAME}.sha256")
+          {
+            printf '## Changes in this version\n\n### %s\n\n' "$CHANGE_HEADER"
+            git log --reverse --format='- %s (%h)' "$CHANGE_RANGE"
+            printf '\n### Build provenance\n\n'
+            printf '%s\n' "- Version: ${VERSION}" "- Commit: ${GITHUB_SHA}" "- GitHub Actions run: ${GITHUB_RUN_NUMBER}, attempt ${GITHUB_RUN_ATTEMPT}" "- SHA-256: ${SHA256}"
+          } > release-notes.md
+
+      - name: Create GitHub Release and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          JAR_NAME: ${{ needs.build.outputs.jar-name }}
+        run: >-
+          gh release create "${VERSION}"
+          "release-assets/${JAR_NAME}"
+          "release-assets/${JAR_NAME}.sha256"
+          --target "${GITHUB_SHA}"
+          --title "${VERSION}"
+          --notes-file release-notes.md

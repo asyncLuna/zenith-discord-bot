@@ -180,7 +180,17 @@ Check formatting, run the tests, and build the executable Spring Boot JAR with:
 
 The JAR is written to `build/libs/`. The tests cover the Spring application context, uwulock behavior, and Member of the Week failure handling. The context test needs MongoDB configured through `SPRING_MONGODB_URI`; it mocks the Discord gateway and does not need a bot token.
 
-GitHub Actions runs tests and builds the JAR for pushes, pull requests, and manual runs. Its MongoDB service is provided by the workflow, and a successful build uploads the executable JAR as the `zenith-discord-bot-jar` artifact.
+GitHub Actions runs formatting checks, tests, and a JAR build on pushes, pull requests, and manual runs. The workflow uses Ubuntu 24.04, Temurin JDK 21.0.12+7, the checked-in Gradle wrapper, and a MongoDB 8.3.4 service. Pull requests and runs on non-default branches do not publish artifacts or releases. A successful push to the default branch or manual run on that branch uploads the tested JAR as a workflow artifact and creates a GitHub Release and matching tag.
+
+Each release version is the base version in `build.gradle.kts` followed by the GitHub Actions run number and rerun attempt, for example `0.4.0.111.1`. The release includes the exact JAR tested by that workflow, a `.sha256` checksum, and release notes listing every commit subject since the previous tag (or all available commit history for the first release). Run numbers distinguish workflow runs; the attempt suffix distinguishes reruns. Workflow artifacts are retained for 14 days, while release assets remain attached to the GitHub Release.
+
+To reproduce a versioned archive locally, use the same source commit, JDK, Gradle wrapper, dependency lock state, and build version:
+
+```powershell
+.\gradlew.bat clean bootJar -PbuildVersion=0.4.0.111.1
+```
+
+Archive entry timestamps and ordering are normalized, and resolved project dependencies are locked in `gradle.lockfile`. The release process publishes the already-tested build rather than rebuilding it. Changing the build version changes the JAR name and embedded version, so different run numbers or attempts intentionally produce different hashes; the hosted Ubuntu image can also receive updates, so bit-for-bit reproducibility across different runner-image revisions is not guaranteed.
 
 ## Project structure
 
